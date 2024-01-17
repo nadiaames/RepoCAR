@@ -5,39 +5,52 @@ import java.io.InputStream;
 import java.util.Scanner;
 import java.net.*;
 
+class Serveur {
+	public static void main(String[] args) {
 
+		ServerSocket serverSocket;
 
+		try {
 
-class Serveur{
- public static void main(String[] args) {
- 
- ServerSocket serverSocket;
- try {
- serverSocket = new ServerSocket(2121);
- System.out.println("connected with success to localhost");
+			serverSocket = new ServerSocket(2121);
+			System.out.println("connected with success to localhost");
 
- while (true) {
+			Socket sockt = serverSocket.accept();
+			OutputStream out = sockt.getOutputStream();
 
- Socket sockt = serverSocket.accept();
- OutputStream out =sockt.getOutputStream();
- String str="200 Service ready\r\n";
- out.write(str.getBytes());
+			InputStream in = sockt.getInputStream();
+			Scanner scanner = new Scanner(in);
 
- InputStream in = sockt.getInputStream();
-  Scanner scanner = new Scanner(in);
+			out.write("200 Service ready \r\n".getBytes());
 
- String username= scanner.nextLine();
- System.out.println(username);
- out.write("331 User name ok \r\n".getBytes());
+			while (true) {
 
- String motdepasse= scanner.nextLine();
- out.write("230 User logged in \r\n".getBytes());
- System.out.println(motdepasse);
- scanner.close();
+				String username = scanner.nextLine();
+				if ("USER nadia".equals(username)) {
+					out.write("331 User name ok \r\n".getBytes());
+					System.out.println(username);
 
- }
- } catch (IOException e) {
- e.printStackTrace();
- }
+					String password = scanner.nextLine();
 
- }
+					if ("PASS nad1".equals(password)) {
+						out.write("230 User logged in \r\n".getBytes());
+					} else {
+						out.write("530 Not logged in \r\n".getBytes());
+						break;
+					}
+				} else {
+					out.write("User Not exists \r\n".getBytes());
+					break;
+				}
+
+				scanner.close();
+
+			}
+
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+	}
+
+}
