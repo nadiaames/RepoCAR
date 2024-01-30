@@ -1,4 +1,5 @@
-package tpcar;
+//package tpcar;
+
 import java.io.*;
 import java.net.*;
 import java.util.Scanner;
@@ -7,11 +8,13 @@ public class Serveur {
 
     private static ServerSocket serverSocket, dataServer;
     private static Socket clientSocket, dataSocket;
+    private static String currentDirectory = System.getProperty("user.home");
+
 
     public static void main(String[] args) {
         try {
             serverSocket = new ServerSocket(2121);
-            System.out.println("Server started on port 2121");
+            System.out.println("\nServer started on port 2121\n");
 
             while (true) {
                 try {
@@ -43,30 +46,22 @@ public class Serveur {
             out.write("220 Service ready \r\n".getBytes());
 
             while (true) {
-                if (!scanner.hasNextLine())
-                    break;
                 String command = scanner.nextLine();
-                System.out.println("Client Response: " + command);
+                System.out.println("Recieved : " + command);
 
                 String[] commandParts = command.split(" ");
 
                 if (command.startsWith("USER")) {
                     handleUserAuthentication(commandParts, out, scanner);
-                } else if (command.equals("SYST")) {
-                    out.write("215 UNIX Type: L8\r\n".getBytes());
-                } else if (command.equals("FEAT")) {
-                    out.write("211-Features:\r\n PASV\r\n SIZE\r\n UTF8\r\n211 End\r\n".getBytes());
-                } else if (command.equals("TYPE I")) {
-                    out.write("200 Binary mode set\r\n".getBytes());
-                } else if (command.startsWith("SIZE")) {
-                    handleSizeCommand(commandParts, out);
-                } else if (command.equals("EPSV") || command.equals("PASV")) {
-                    handlePasvCommand(out);
+                } else if (command.equals("EPSV")) {
+                    handleEpsvCommand(out);
                 } else if (command.startsWith("RETR")) {
                     handleRetrCommand(commandParts, out);
+                } else if (command.equals("LIST")) {
+                    handleListCommand(out);
                 } else if (command.toUpperCase().equals("QUIT")) {
                     out.write("221 User logged out\r\n".getBytes());
-                    break;
+                    if (clientSocket != null) clientSocket.close();
                 } else {
                     out.write("502 Command not implemented\r\n".getBytes());
                 }
@@ -78,83 +73,82 @@ public class Serveur {
     }
 
     private static void handleUserAuthentication(String[] commandParts, OutputStream out, Scanner scanner) throws IOException {
-        if (commandParts.length > 1) {
             String username = commandParts[1];
-    
             if ("nadia".equalsIgnoreCase(username)) {
                 out.write("331 User name okay, need password\r\n".getBytes());
-                
-                if (scanner.hasNextLine()) {
-                    String passCommand = scanner.nextLine();
-                    String[] passParts = passCommand.split(" ");
-                    if (passParts[0].equalsIgnoreCase("PASS") && passParts.length > 1 && "nad".equals(passParts[1])) {
-                        out.write("230 User logged in\r\n".getBytes());
-                    } else {
-                        out.write("530 Not logged in, incorrect password\r\n".getBytes());
-                    }
+                String passCommand = scanner.nextLine();
+                String[] passParts = passCommand.split(" ");
+                if (passParts[0].equalsIgnoreCase("PASS") && "nad".equals(passParts[1])) {
+                    out.write("230 User logged in\r\n".getBytes());
                 } else {
-                    out.write("501 Syntax error in parameters or arguments\r\n".getBytes());
+                    out.write("530 Not logged in, incorrect password\r\n".getBytes());
                 }
             } else {
                 out.write("530 Not logged in, user not found\r\n".getBytes());
             }
-        } else {
-            out.write("501 Syntax error in parameters or arguments\r\n".getBytes());
-        }
     }
 
-    private static void handleSizeCommand(String[] commandParts, OutputStream out) throws IOException {
-        if (commandParts.length > 1) {
-            String fileName = commandParts[1];
-            File file = new File(fileName);
-            if (file.exists()) {
-                out.write(("213 " + file.length() + "\r\n").getBytes());
-            } else {
-                out.write("550 File not found\r\n".getBytes());
-            }
-        } else {
-            out.write("501 Syntax error in parameters or arguments\r\n".getBytes());
-        }
-    }
-
-    private static void handlePasvCommand(OutputStream out) throws IOException {
+    private static void handleEpsvCommand(OutputStream out) throws IOException {
         dataServer = new ServerSocket(0); 
         int hostPort = dataServer.getLocalPort();
         out.write(("229 Entering Extended Passive Mode (|||" + hostPort + "|)\r\n").getBytes());
-        dataSocket = dataServer.accept();
     }
 
     private static void handleRetrCommand(String[] commandParts, OutputStream out) throws IOException {
-        // verifier si la commande a suffisamment d'arguments et si la connexion de donnee est etablie
-        if (commandParts.length > 1 && dataSocket != null) {
-            String fileName = commandParts[1];
-            File file = new File(fileName);
+        String fileName = commandParts[1];
+        File file = new File(fileName);
 
-            if (!file.exists()) {
-                out.write("550 File not found\r\n".getBytes());
-                return;
+        if (!file.exists()) {
+            out.write("550 File not found\r\n".getBytes());
+            return;
+        }
+
+        out.write("150 Opening BINARY mode data connection for file transfer\r\n".getBytes());
+
+        try (Socket dataSocket = dataServer.accept();
+        FileInputStream fis = new FileInputStream(file);
+        OutputStream dataOut = dataSocket.getOutputStream()) {
+
+            byte[] buffer = new byte[4096];
+            int count;
+            while ((count = fis.read(buffer)) > 0) {
+                dataOut.write(buffer, 0, count);
             }
-
-            out.write("150 Opening BINARY mode data connection for file transfer\r\n".getBytes());
-
-            try (FileInputStream fis = new FileInputStream(file);
-                    OutputStream dataOut = dataSocket.getOutputStream()) {
-                byte[] buffer = new byte[4096];
-                int count;
-                while ((count = fis.read(buffer)) > 0) {
-                    dataOut.write(buffer, 0, count);
-                }
-                out.write("226 Transfered with success\r\n".getBytes());
-            } finally {
-                if (dataSocket != null && !dataSocket.isClosed()) {
-                    dataSocket.close();
-                }
-                if (dataServer != null && !dataServer.isClosed()) {
-                    dataServer.close();
-                }
+            out.write("226 Transfered with success\r\n".getBytes());
+        } finally {
+            if (dataSocket != null && !dataSocket.isClosed()) {
+                dataSocket.close();
             }
-        } else {
-            out.write("425 Can't open data connection\r\n".getBytes());
+            if (dataServer != null && !dataServer.isClosed()) {
+                dataServer.close();
+            }
         }
     }
+
+    private static void handleListCommand(OutputStream out) throws IOException {
+        try (Socket dataSocket = dataServer.accept();
+        OutputStream dataOut = dataSocket.getOutputStream()) {
+
+        File directoryCurrent = new File(currentDirectory);
+        File[] files = directoryCurrent.listFiles();
+        
+        if (files != null) {
+            out.write("150 Displaying the directory contents\r\n".getBytes());
+
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    dataOut.write(("d " + file.getName() + "\r\n").getBytes());
+                } else {
+                    dataOut.write(("- " + file.getName() + "\r\n").getBytes());
+                }
+            }
+            out.write("226 Directory listing sent successfully.\r\n".getBytes());
+        } else {
+            out.write("550 Directory not found\r\n".getBytes());
+            return;
+        }
+    
+        }
+    }
+
 }
