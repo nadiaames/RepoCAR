@@ -10,7 +10,6 @@ public class Serveur {
     private static Socket clientSocket, dataSocket;
     private static String currentDirectory = System.getProperty("user.home");
 
-
     public static void main(String[] args) {
         try {
             serverSocket = new ServerSocket(2121);
