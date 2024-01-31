@@ -58,6 +58,8 @@ public class Serveur {
                     handleRetrCommand(commandParts, out);
                 } else if (command.equals("LIST")) {
                     handleListCommand(out);
+                } else if (command.startsWith("CWD")) {
+                    handleCwdCommand(commandParts, out);
                 } else if (command.toUpperCase().equals("QUIT")) {
                     out.write("221 User logged out\r\n".getBytes());
                     if (clientSocket != null) clientSocket.close();
@@ -149,5 +151,18 @@ public class Serveur {
     
         }
     }
-
+    
+    private static void handleCwdCommand(String[] commandParts, OutputStream out) throws IOException {
+        String newDirectory = commandParts[1];
+        File newDir = new File(currentDirectory, newDirectory);
+    
+        if (newDir.exists() && newDir.isDirectory()) {
+            currentDirectory = newDir.getAbsolutePath();
+            out.write(("250 CWD successful. Current directory is " + currentDirectory + "\r\n").getBytes());
+        } else {
+            out.write("550 Requested action not taken. Directory does not exist\r\n".getBytes());
+        }
+    }
+    
+    
 }
