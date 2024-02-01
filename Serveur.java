@@ -2,6 +2,8 @@
 
 import java.io.*;
 import java.net.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Scanner;
 
 public class Serveur {
@@ -10,8 +12,12 @@ public class Serveur {
     private static Socket clientSocket, dataSocket;
     private static boolean auth = true;
     private static String currentDirectory = System.getProperty("user.dir");
+    private static Map<String, String> users = new HashMap<>();
 
     public static void main(String[] args) {
+        users.put("nadia", "nad");
+        users.put("miage", "car");
+
         try {
             serverSocket = new ServerSocket(2121);
             System.out.println("\nServer started on port 2121\n");
@@ -93,12 +99,11 @@ public class Serveur {
 
     private static void handleUserAuthentication(String[] commandParts, OutputStream out, Scanner scanner) throws IOException {
         String username = commandParts[1];
-
-        if ("nadia".equalsIgnoreCase(username)) {
+        if (users.containsKey(username)) {
             out.write("331 User name okay, need password\r\n".getBytes());
             String passCommand = scanner.nextLine();
             String[] passParts = passCommand.split(" ");
-            if (passParts[0].equalsIgnoreCase("PASS") && "nad".equals(passParts[1])) {
+            if (passParts[0].equalsIgnoreCase("PASS") && users.get(username).equals(passParts[1])) {
                 out.write("230 User logged in\r\n".getBytes());
             } else {
                 out.write("530 Not logged in, incorrect password\r\n".getBytes());
@@ -108,7 +113,6 @@ public class Serveur {
             out.write("530 Not logged in, user not found\r\n".getBytes());
             auth = false;
         }
-
     }
     
 
@@ -169,7 +173,8 @@ public class Serveur {
     
     private static void handleCwdCommand(String[] commandParts, OutputStream out) throws IOException {
         String newDirectory = commandParts[1];
-        File newDir = new File(currentDirectory, newDirectory);        
+        File newDir = new File(currentDirectory, newDirectory);
+        
         if ("..".equals(newDirectory)) {
             if (currentDirectory.equals(System.getProperty("user.dir"))) {
                 out.write(("550 Requested action not taken. Cannot move beyond root directory.\r\n").getBytes());
@@ -181,7 +186,7 @@ public class Serveur {
                 return;
             }
         }
-
+        
         if (newDir.exists() && newDir.isDirectory()) {
             currentDirectory = newDir.getAbsolutePath();
             out.write(("250 CWD successful. Current directory is " + currentDirectory + "\r\n").getBytes());
